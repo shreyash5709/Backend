@@ -25,12 +25,23 @@ const userSchema = new mongoose.Schema(
             trim: true,
             index: true,
         },
-        avatar:{
-            type: String, // cloudinary url
-            required: true,
+        avatar: {
+            url: { // cloudinari url
+                type: String, 
+                required: true,
+            },
+            public_id: { // cloudinary public id
+                type: String,
+                required: true,
+            }
         },
         coverImage: {
-            type: String, // cloudinary url
+            url: { // cloudinari url
+                type: String, 
+            },
+            public_id: { // cloudinary public id
+                type: String,
+            }
         },
         watchHistory: [
             {
@@ -53,7 +64,9 @@ const userSchema = new mongoose.Schema(
 
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next;
+
     this.password = await bcrypt.hash(this.password, 10);
+    next;
 })
 
 userSchema.methods.isPasswordCorrect = async function (password) {
