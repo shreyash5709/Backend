@@ -305,10 +305,6 @@ const updateAccountDetails = asyncHandler( async (req, res) => {
         }
     ).select("-password")
 
-    await user.save({
-        validateBeforeSave: false
-    })
-
     return res
     .status(200)    
     .json(
