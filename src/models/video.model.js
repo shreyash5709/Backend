@@ -11,7 +11,7 @@ const videoSchema = new mongoose.Schema(
             type: String, // cloudinary url
             required: true,
         },
-        tittl: {
+        title: {
             type: String,
             required: true,
         },
