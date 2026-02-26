@@ -23,8 +23,10 @@ app.use(express.static("public"))
 app.use(cookieParser())
 
 //  routes imports
-import userRouter from "./routes/user.routes.js"
-import videoRouter from "./routes/video.routes.js"
+import {userRouter, videoRouter, commentRouter, 
+    likeRouter, playlistRouter, subscriptionRouter, 
+    tweetRouter
+} from "../src/routes/index.route.js"
 
 // route declaration
 app.use("/api/v1/users", userRouter)
