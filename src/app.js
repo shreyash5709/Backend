@@ -31,5 +31,6 @@ import {userRouter, videoRouter, commentRouter,
 // route declaration
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/videos", videoRouter)
+app.use("/api/v1/subscription", subscriptionRouter)
 
 export { app };
