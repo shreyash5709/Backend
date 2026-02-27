@@ -89,7 +89,7 @@ const registerUser = asyncHandler( async (req, res) => {
         },
         coverImage: {
             url: coverImage?.url,
-            public_id: coverImage.public_id
+            public_id: coverImage?.public_id
         }
     })
 
@@ -456,6 +456,7 @@ const getUserChannelProfile = asyncHandler( async (req, res) => {
         },
         {
             $project: {
+                _id: 1,
                 subscriberCount: 1,
                 channelSubscribedToCount: 1,
                 isSubscribed: 1,
@@ -515,23 +516,129 @@ const getWatchHistory = asyncHandler( async (req, res) => {
                         }
                     },
                     {
-                        $addFields: {
-                            owner: {
-                                $first: "$owner"
-                            }
+                        $unwind: {
+                            path: "$owner",
+                            preserveNullAndEmptyArrays: true
                         }
                     }
                 ]
             }
         },
+        {
+            $addFields: {
+                watchHistory: {
+                    $reverseArray: "$watchHistory"
+                }
+            }
+        },
+        {
+            $project: {
+                watchHistory: 1
+            }
+        }
     ])
 
     return res
     .status(200)
     .json(
-        new ApiResponse(200, "Watch history fetched successfully", user[0]?.watchHistory)
+        new ApiResponse(200, "Watch history fetched successfully", user[0]?.watchHistory || [])
     )
 })
+
+const searchChannels = asyncHandler( async (req, res) => {
+    const {query, page = 1, limit = 10} = req.query
+
+    if(!query?.trim()){
+        throw new ApiError(400, "Query is required")
+    }
+
+    const searchAggregate = User.aggregate([
+        {
+            $match: {
+                // OPTION 1: Text Search (Requires text index on username/fullName)
+                $text: {
+                    $search: query
+                },
+                // Login user ko search results mein khud ka profile nahi dikhna chahiye
+                _id: {
+                    $ne: new mongoose.Types.ObjectId(req.user?._id)
+                }
+            }
+        },
+        {
+            // Subscription check kaene ke liye join
+            $lookup: {
+                from: "subscriptions",
+                localField: "_id",
+                foreignField: "channel",
+                as: "subscribers"
+            }
+        },
+        {
+            $addFields: {
+                // follows ki ginti
+                subscriberCount: {
+                    $size: "$subscribers"
+                },
+                // Kya current user ne ise subscribe kiya hai?
+                isSubscribed: {
+                    $cond: {
+                        if: {
+                            $in: [req.user?._id, "$subscribers.subscriber"]
+                        },
+                        then: true,
+                        else: false
+                    }
+                },
+                /*
+                 * Relevance Score ($meta)
+                 * KYUN? Taaki hum match accuracy ke basis par sort kar sakein.
+                */
+                score: {
+                    $meta: "textScore"
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                subscriberCount: 1,
+                isSubscribed: 1,
+                fullName: 1,
+                username: 1,
+                avatar: 1,
+                score: 1 // Frontend par accuracy check ke liye score bhej sakte hain
+            }
+        },
+        {
+            $sort: {
+                // Pehle accuracy (score) par sort karo, phir popularity (subscriberCount) par
+                score: {
+                    $meta: "textScore"
+                },
+                subscriberCount: -1
+            }
+        }
+    ])
+
+    const options = {
+        page: parseInt(page, 10),
+        limit: parseInt(limit, 10),
+        customLabels: {
+            totalDocs: "totalChannels",
+            docs: "channels",
+        },
+    }
+
+    const result = await User.aggregatePaginate(searchAggregate, options)
+
+    return res
+    .status(200)
+    .json(
+        new ApiResponse(200, "Channels fetched successfully", result)
+    )
+})
+
 
 export {
     registerUser,
@@ -544,5 +651,6 @@ export {
     updateAvatar,
     updateCoverImage,
     getUserChannelProfile,
-    getWatchHistory
+    getWatchHistory,
+    searchChannels
 }
