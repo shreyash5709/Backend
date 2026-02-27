@@ -100,28 +100,6 @@ userSchema.methods.generateRefreshToken = function () {
         }
     )
 }
-    
-// Yeh line database ko batati hai ki username aur fullName par "Text Index" banana hai.
-userSchema.index(
-    { 
-        username: "text", 
-        fullName: "text" 
-    }, 
-    {
-        /**
-         * Kyun use kiya?
-         * 1. Performance: Bina index ke MongoDB har ek user ko check karega (Collection Scan), 
-         * jo slow hota hai. Indexing se ye library ki 'Index' table ki tarah kaam karta hai—seedha result dhoondta hai.
-         * 2. Search Power: "text" index hone se hi hum Aggregation mein $text aur $meta: "textScore" use kar paate hain.
-         * 3. Weights (Optional): Aap priority bhi de sakte hain ki username match ko fullName se zyada importance mile.
-         */
-        weights: {
-            username: 10,
-            fullName: 15
-        },
-        name: "UserSearchIndex"
-    }
-);
 
 userSchema.plugin(mongooseAggregatePaginate);
 export const User = mongoose.model("User", userSchema);
