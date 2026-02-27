@@ -552,13 +552,19 @@ const searchChannels = asyncHandler( async (req, res) => {
         throw new ApiError(400, "Query is required")
     }
 
+    const regexQuery = new RegExp(query, "i")
+
     const searchAggregate = User.aggregate([
         {
             $match: {
-                // OPTION 1: Text Search (Requires text index on username/fullName)
-                $text: {
-                    $search: query
-                },
+                $or: [
+                    {
+                        username: regexQuery
+                    },
+                    {
+                        fullName: regexQuery
+                    }
+                ],
                 // Login user ko search results mein khud ka profile nahi dikhna chahiye
                 _id: {
                     $ne: new mongoose.Types.ObjectId(req.user?._id)
@@ -589,13 +595,6 @@ const searchChannels = asyncHandler( async (req, res) => {
                         then: true,
                         else: false
                     }
-                },
-                /*
-                 * Relevance Score ($meta)
-                 * KYUN? Taaki hum match accuracy ke basis par sort kar sakein.
-                */
-                score: {
-                    $meta: "textScore"
                 }
             }
         },
@@ -606,17 +605,14 @@ const searchChannels = asyncHandler( async (req, res) => {
                 isSubscribed: 1,
                 fullName: 1,
                 username: 1,
-                avatar: 1,
-                score: 1 // Frontend par accuracy check ke liye score bhej sakte hain
+                avatar: 1
             }
         },
         {
-            $sort: {
-                // Pehle accuracy (score) par sort karo, phir popularity (subscriberCount) par
-                score: {
-                    $meta: "textScore"
-                },
-                subscriberCount: -1
+            $sort:{
+                subscriberCount: -1,
+                fullName: 1,
+                username: 1
             }
         }
     ])
@@ -635,7 +631,18 @@ const searchChannels = asyncHandler( async (req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(200, "Channels fetched successfully", result)
+        new ApiResponse(
+            200, 
+            "Channels fetched successfully",
+            {
+                totalChannels: result.totalChannels,
+                channels: result.channels,
+                totalPage: result.totalPages,
+                currentPage: result.page,
+                hasNextPage: result.hasNextPage,
+                hasPrevPage: result.hasPrevPage
+            }
+        )
     )
 })
 
