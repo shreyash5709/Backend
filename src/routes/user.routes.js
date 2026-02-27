@@ -3,7 +3,8 @@ import {
     loginUser, registerUser, logoutUser, 
     refreshAccessToken, changePassword, getCurrentUser, 
     updateAccountDetails, updateAvatar, updateCoverImage, 
-    getUserChannelProfile, getWatchHistory
+    getUserChannelProfile, getWatchHistory,
+    searchChannels
 } from "../controllers/user.controller.js";
 import {upload} from "../middlewares/multer.middleware.js"
 import { verifyJWT } from "../middlewares/userAuth.middleware.js";
@@ -70,5 +71,9 @@ router.route("/watch-history").get(
     getWatchHistory
 )
 
+router.route("/search").get(
+    verifyJWT, 
+    searchChannels
+)
 
 export default router; 
