@@ -1,9 +1,7 @@
 import mongoose from "mongoose";
 import {asyncHandler, ApiError, ApiResponse} from "../utils/index.utils.js"
 import {uploadOnCloudinary, deleteFromCloudinary} from "../utils/cloudinary.js"
-import {Video, Like, Comment, Playlist} from "../models/index.model.js"
-
-
+import {User, Video, Like, Comment, Playlist} from "../models/index.model.js"
 
 const getAllVideos = asyncHandler( async (req, res) => {
     const { page = 1, limit = 10, query, sortBy, sortType, userId } = req.query
@@ -158,10 +156,39 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid Video ID");
     }
 
-    const video = await Video.findById(videoId);
+    const user = await User.findById(req.user?._id)
+ 
+    let isAlreadyWatch = user?.watchHistory?.some(
+        (id) => id.toString() === videoId
+    )
+    
+    let video;
+    if(!user || !isAlreadyWatch){
+        video = await Video.findByIdAndUpdate(
+            videoId,
+            {
+                $inc: { views: 1 }
+            },
+            {new: true}
+        )   
+    }
+    else{
+        video = await Video.findById(videoId)
+    }
+    
     if (!video) {
         throw new ApiError(404, "Video not found");
     }   
+
+    if(user){
+        user.watchHistory = user.watchHistory.filter(
+            (id) => id.toString() !== videoId
+        )
+        user.watchHistory.unshift(video._id)
+        user.save({
+            validateBeforeSave: false
+        }).catch(err => console.error("Error while updating watch history:", err.message))
+    }
 
     return res
     .status(200)
