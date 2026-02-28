@@ -441,7 +441,11 @@ const getUserChannelProfile = asyncHandler( async (req, res) => {
                     $size: "$subscribers"
                 },
                 channelSubscribedToCount: {
-                    $size: "$subscribedTo"
+                    $cond: {
+                        if: {$eq: [new mongoose.Types.ObjectId(req.user?._id), "$_id"]},
+                        then: {$size: "$subscribedTo"},
+                        else: 0
+                    }
                 },
                 isSubscribed: {
                     $cond: {
@@ -525,13 +529,6 @@ const getWatchHistory = asyncHandler( async (req, res) => {
             }
         },
         {
-            $addFields: {
-                watchHistory: {
-                    $reverseArray: "$watchHistory"
-                }
-            }
-        },
-        {
             $project: {
                 watchHistory: 1
             }
@@ -567,7 +564,7 @@ const searchChannels = asyncHandler( async (req, res) => {
                 ],
                 // Login user ko search results mein khud ka profile nahi dikhna chahiye
                 _id: {
-                    $ne: new mongoose.Types.ObjectId(req.user?._id)
+                    $ne: req.user?._id ? new mongoose.Types.ObjectId(req.user._id) : null
                 }
             }
         },
