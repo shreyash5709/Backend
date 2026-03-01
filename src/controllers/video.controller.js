@@ -96,7 +96,7 @@ const getAllVideos = asyncHandler( async (req, res) => {
     return res
     .status(200)
     .json(
-        new ApiResponse(200, "Videos fetched sussfully", result)
+        new ApiResponse(200, "Videos fetched successfully", result)
     )
 })
 
@@ -156,38 +156,121 @@ const getVideoById = asyncHandler(async (req, res) => {
         throw new ApiError(400, "Invalid Video ID");
     }
 
-    const user = await User.findById(req.user?._id)
- 
-    let isAlreadyWatch = user?.watchHistory?.some(
-        (id) => id.toString() === videoId
-    )
-    
-    let video;
-    if(!user || !isAlreadyWatch){
-        video = await Video.findByIdAndUpdate(
-            videoId,
-            {
-                $inc: { views: 1 }
-            },
-            {new: true}
-        )   
-    }
-    else{
-        video = await Video.findById(videoId)
-    }
-    
-    if (!video) {
-        throw new ApiError(404, "Video not found");
-    }   
+    const videoAggregation = await Video.aggregate([
+        {
+            $match: {
+                _id: new mongoose.Types.ObjectId(videoId),
+                isPublished: true
+            }
+        },
+        {
+            $lookup: {
+                from: "users",
+                localField: "owner",
+                foreignField: "_id",
+                as: "owner",
+                pipeline: [
+                    {
+                        $lookup: {
+                            from: "subscriptions",
+                            localField: "_id",
+                            foreignField: "channel",
+                            as: "subscribers",
+                        }
+                    },
+                    {
+                        $addFields: {
+                            subscriberCount: {
+                                $size: "$subscribers"
+                            },
+                            isSubscribed: {
+                                $cond: {
+                                    if: {
+                                        $in: [req.user?._id, "$subscribers.subscriber"]
+                                    },
+                                    then: true,
+                                    else: false
+                                }
+                            }
+                        }
+                    },
+                    {
+                        $project: {
+                            username: 1,
+                            fullName: 1,
+                            avatar: 1,
+                            subscriberCount: 1,
+                            isSubscribed: 1
+                        }
+                    }
+                ]
+            
+            }
+        },
+        {
+            $unwind: "$owner"
+        },
+        {
+            $lookup: {
+                from: "likes",
+                localField: "_id",
+                foreignField: "video",
+                as: "likes"
+            }
+        },
+        {
+            $addFields: {
+                isLiked: {
+                    $cond: {
+                        if: {
+                            $in: [req.user?._id, "$likes.likedBy"]
+                        },
+                        then: true,
+                        else: false
+                    }
+                },
+                likeCount: {
+                    $size: "$likes"
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 1,
+                title: 1,
+                description: 1,
+                videoFile: 1,
+                thumbnail: 1,
+                duration: 1,
+                views: 1,
+                isLiked: 1,
+                likeCount: 1,
+                owner: 1,
+            }
+        }
+    ])
 
-    if(user){
-        user.watchHistory = user.watchHistory.filter(
-            (id) => id.toString() !== videoId
-        )
-        user.watchHistory.unshift(video._id)
-        user.save({
-            validateBeforeSave: false
-        }).catch(err => console.error("Error while updating watch history:", err.message))
+    if(!videoAggregation?.length){
+        throw new ApiError(404, "Video not found")
+    }
+
+    let video = videoAggregation[0]
+    if(req.user?._id){
+        const user = await User.findById(req.user?._id)
+        const isAlreadyWatch = user?.watchHistory?.some(id => id.toString() === videoId)
+        if(!isAlreadyWatch){
+            await Video.findByIdAndUpdate(videoId, {
+                $inc: {
+                    views: 1
+                }
+            })
+
+            video.views += 1
+        }
+
+        const cleanHistory = user.watchHistory.filter(id => id.toString() !== videoId)
+        user.watchHistory = [video._id, ...cleanHistory].slice(0, 100)
+        await user.save({validateBeforeSave: false})
     }
 
     return res
