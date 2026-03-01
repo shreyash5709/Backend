@@ -32,5 +32,6 @@ import {userRouter, videoRouter, commentRouter,
 app.use("/api/v1/users", userRouter)
 app.use("/api/v1/videos", videoRouter)
 app.use("/api/v1/subscription", subscriptionRouter)
+app.use("/api/v1/likes", likeRouter)
 
 export { app };
